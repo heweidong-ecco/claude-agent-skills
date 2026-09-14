@@ -26,6 +26,12 @@ check_public_hygiene —— 公开仓卫生校验（**唯一校验真相，CI �
       - **CI**：只能跑 1–5 项；**第 6 项在 CI 上是空的**
    ⇒ 这是**有意的取舍**，不是漏洞。详见 README §四。
 
+⛔ **但"空"必须是说出来的，不能是默认发生的**
+   清单缺失时**静默跳过**，是本项目点名要防的形状 ——
+   **该有输入的地方没有输入，系统不报错、用默认值继续，产出看起来完全正常。**
+   ⇒ 所以：**清单缺失 ⟹ 默认直接报错**；
+      只有**显式传 `--no-private-list`** 才允许跳过（CI 用），并打印声明。
+
 用法
 ----
     python3 tools/check_public_hygiene.py                # 校验（本地与 CI 同一份）
@@ -137,6 +143,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--self-test", action="store_true",
                     help="突变验证：证明检查器在违规时真的会变红")
+    ap.add_argument("--no-private-list", action="store_true",
+                    help="**显式**声明「本次不做私有名检查（第 6 项）」。"
+                         "CI 传这个；**本地不要传** —— 本地应当把清单建出来。")
     args = ap.parse_args()
 
     if args.self_test:
@@ -144,13 +153,29 @@ def main():
 
     hits, private_names = check()
 
+    # ⛔ 清单缺失 ≠ 可以静默跳过。见文件头「但"空"必须是说出来的」。
+    if not private_names and not args.no_private_list:
+        print("✗ 未通过：找不到 tools/private-names.txt —— **「私有名」这一项会是空的**。")
+        print()
+        print("  这不是能静默跳过的事：清单缺失时这道防线会**无声失效**，")
+        print("  而校验照样打绿 —— 那正是本项目要防的「默认值填充」。")
+        print()
+        print("  本地：建 tools/private-names.txt，每行一个不能公开的名字（# 开头为注释）。")
+        print("  CI  ：已显式传 --no-private-list 声明该缺口")
+        print("        （见 .github/workflows/hygiene-check.yml）。")
+        return 1
+
     print(f"公开卫生校验 · 根目录 {ROOT.name}/")
-    print(f"  私有名清单：{'已加载 %d 条（本地门）' % len(private_names) if private_names else '不存在 ⇒ 第 6 项为空（CI 上这是正常的）'}")
+    if private_names:
+        print(f"  私有名清单：已加载 {len(private_names)} 条（本地门）")
+    else:
+        print("  ⚠️ 私有名清单：**已显式跳过**（--no-private-list）—— 第 6 项本次为空，")
+        print("     这是**声明的缺口**，不是通过。")
     print()
 
     if not hits:
         print("✅ 通过：绝对路径 / 家目录路径 / 邮箱 / 密钥样式 / 手机号"
-              + ("/ 私有名" if private_names else "") + " —— 全部无命中")
+              + ("/ 私有名" if private_names else "（私有名已显式跳过）") + " —— 全部无命中")
         return 0
 
     print(f"✗ 未通过（{len(hits)} 处）：\n")
