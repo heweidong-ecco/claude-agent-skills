@@ -1,0 +1,11 @@
+# ── macOS ──
+.DS_Store
+
+# ── Python ──
+__pycache__/
+*.pyc
+
+# ── ⛔ 私有名清单：**只在本地存在，绝不进仓库** ──
+# 写进它的名单会被 check_public_hygiene.py 当作违规项
+# —— 放这里而不是放进检查器，是因为**检查器本身是公开的**
+tools/private-names.txt

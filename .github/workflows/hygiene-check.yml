@@ -1,0 +1,37 @@
+name: hygiene-check
+
+# 终门：push / PR 必跑。
+#
+# ⚠️ 配 `main` 分支保护后这道门才真能拦住 ——
+#    否则（直推 main 模式）CI 是在 push **之后**才跑，红叉只等于"记了一笔"。
+#    这是本项目同类仓库踩过的坑：**滞后门**。
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  hygiene-check:
+    name: hygiene-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 公开卫生校验（绝对路径 / 家目录 / 邮箱 / 密钥 / 手机号）
+        run: python3 tools/check_public_hygiene.py
+
+      # 门禁自己也要有防腐：证明这些检查**在违规时真的会变红**（突变验证）
+      - name: 检查器自检（突变验证）
+        run: python3 tools/check_public_hygiene.py --self-test
+
+      # ⚠️ 已知缺口（**不假装全绿**）：
+      #    「私有名」这一项依赖 tools/private-names.txt，
+      #     而它被 .gitignore 排除、不进仓库 ⇒ **CI 上这一项为空、拦不了**。
+      #    该项只有本地 pre-commit 能拦。详见 README §四。
+      - name: 声明已知缺口
+        run: |
+          echo "::notice title=已知缺口::私有名检查依赖 tools/private-names.txt（不进仓库），CI 侧为空，只有本地 pre-commit 能拦。"

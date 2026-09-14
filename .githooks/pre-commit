@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# 本地左移门 —— 提交前跑与 CI **同一份**校验脚本
+# 装法（⚠️ 每台机器装一次，不随克隆/移动携带）：
+#     git config core.hooksPath .githooks
+
+python3 tools/check_public_hygiene.py || {
+  printf '\n✗ 提交被拒：公开卫生校验未通过（详见上方）。\n'
+  printf '  约束见 README §二（占位符规范）/ §四（已知局限）。\n'
+  printf '  (绕过：git commit --no-verify —— 请说明为何绕过)\n'
+  exit 1
+}
