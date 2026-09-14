@@ -1,0 +1,41 @@
+{
+  "$说明": [
+    "用户级注册片段 —— 合并进 ~/.claude/settings.json（**合并**，不要覆盖）。",
+    "",
+    "⛔ 为什么这一份存在：settings 只从 **cwd 的 .claude/** 加载，**无父目录回退**。",
+    "   所以项目级那份，在别的项目里**永远不会被读**。",
+    "   要覆盖'任何项目里的 Agent'，只能放用户级（或 managed）。",
+    "",
+    "⚠️ 装之前：把 hooks/*.py 复制到 ~/.claude/hooks/ 并改 path-guard.py 的白名单。",
+    "⚠️ 改完必须**重启会话**才生效。",
+    "",
+    "⚠️ 用户级的代价：这层钩子会作用于**这台机器上的所有项目**。",
+    "   若某道门在别的项目里误报太多 —— 先调判据，别直接拆掉整份注册。"
+  ],
+
+  "hooks": {
+    "PreToolUse": [
+      {
+        "$说明": "① 对外/不可逆动作门  ② 批量改写门 —— 都只挂 Bash",
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command",
+            "command": "python3 \"$HOME/.claude/hooks/outward-guard.py\"",
+            "timeout": 10 },
+          { "type": "command",
+            "command": "python3 \"$HOME/.claude/hooks/bulk-write-guard.py\"",
+            "timeout": 10 }
+        ]
+      },
+      {
+        "$说明": "③ 路径白名单门 —— 必须挂 7 个工具：Read/Write/Edit 不走 Bash，只挂 Bash 等于没挂",
+        "matcher": "Bash|Read|Write|Edit|NotebookEdit|Glob|Grep",
+        "hooks": [
+          { "type": "command",
+            "command": "python3 \"$HOME/.claude/hooks/path-guard.py\"",
+            "timeout": 10 }
+        ]
+      }
+    ]
+  }
+}
