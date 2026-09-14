@@ -49,6 +49,13 @@ PATTERNS = [
 RE_RM = re.compile(r"\brm\s+(?:-[a-zA-Z]+\s+)*([^\s;&|]+)")
 RE_RM_RF = re.compile(r"\brm\s+-[a-zA-Z]*[rf][a-zA-Z]*")
 
+# ⚠️ 匹配「动作动词」前先去掉引号内内容。
+#    不这么做，`echo "git push"` / `grep "git push" docs/` / 写文档写测试
+#    —— 这些**只是提到**该动作的命令都会被拦。
+#    实测误报：2026-09-15，本门前脚刚装上，后脚就在一次"测试门本身"的命令里误报。
+#    ⛔ 但 `rm` 的目标提取**仍用原文** —— 那里路径本身就在引号里。
+RE_QUOTED = re.compile(r"'[^']*'|\"[^\"]*\"|`[^`]*`")
+
 
 def rm_targets(cmd):
     """取出 `rm -r/-f` 的目标；系统临时目录下的不算命中。"""
@@ -69,13 +76,14 @@ def rm_targets(cmd):
 def find_hits(payload):
     if payload.get("tool_name") != "Bash":
         return []
-    cmd = (payload.get("tool_input") or {}).get("command", "") or ""
+    raw = (payload.get("tool_input") or {}).get("command", "") or ""
+    verb_text = RE_QUOTED.sub(" ", raw)     # ← 去引号后再匹配动词
     hits = []
     for name, pat, why in PATTERNS:
-        if pat.search(cmd):
+        if pat.search(verb_text):
             hits.append((name, why))
             break                       # 只报最高优先的那一条，避免刷屏
-    for t in rm_targets(cmd):
+    for t in rm_targets(raw):           # ← rm 的目标用**原文**
         hits.append(("不可逆删除", f"`rm -r/-f {t}` —— 系统临时目录之外，删了拿不回来。"))
     return hits
 
@@ -135,6 +143,10 @@ def self_test():
         ("rm -rf /tmp",              "rm -rf /tmp/scratch",                      0),
         ("rm 单文件（无 -r/-f）",      "rm notes.txt",                            0),
         ("普通命令",                  'grep -rn "x" .',                           0),
+        # ⚠️ 以下三条是**实测误报**逼出来的（2026-09-15，门刚装上就在测它自己时误报）
+        ("只是提到 · echo",           'echo "git push"',                          0),
+        ("只是提到 · grep 文档",        'grep -rn "git push" docs/',                0),
+        ("只是提到 · 但动作是 commit",   'git commit -m "补充 git push 的说明"',      1),
     ]
     print("outward-guard · 突变验证\n")
     ok = fail = 0

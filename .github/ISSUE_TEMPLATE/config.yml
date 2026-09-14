@@ -1,0 +1,10 @@
+blank_issues_enabled: true
+
+contact_links:
+  - name: 通用规则请提到规则库（agent-pitfalls-kb）
+    url: https://github.com/heweidong-ecco/agent-pitfalls-kb
+    about: 本仓只收「这个 skill 自己的东西」；可复用的通用规则属于规则库，不属于这里。
+
+  - name: Claude Code 的 settings / hooks 怎么配
+    url: https://docs.claude.com/en/docs/claude-code/settings
+    about: 层级、优先级、加载位置的问题看官方文档 —— 别在本仓提。

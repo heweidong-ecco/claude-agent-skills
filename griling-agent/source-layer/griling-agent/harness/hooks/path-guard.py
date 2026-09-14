@@ -24,12 +24,26 @@ import re
 import sys
 
 # ══════════════════════════════════════════════════════════════════
-# ⛔ 装之前必改：本项目的白名单根（**真路径化，防 `..` 与符号链接绕过**）
+# ⛔ 装之前必改：本机允许访问的根（**真路径化，防 `..` 与符号链接绕过**）
+#
+# 下面全是**占位符样本** —— 不含任何具体机器的路径。
+# 换成你自己的，可以写多条：
+#     ALLOW_ROOTS = [os.path.realpath("<项目根>"), os.path.realpath("<另一个根>")]
+#
+# ⚠️ **不改会怎样**：白名单是个不存在的路径 ⇒ **所有真实路径都被拦**，
+#    而脚本**不会因此报错** —— 这就是"看起来装好了、实际不工作"。
+#    ⇒ 所以下面有一道 `_configured()` 检查：**占位符还在就拒绝工作**。
 # ══════════════════════════════════════════════════════════════════
 HOME = os.path.expanduser("~")
 ALLOW_ROOTS = [
-    os.path.realpath(os.path.join(HOME, "Desktop", "<在此填你的项目根>")),
+    os.path.realpath("<在此填你的项目根>"),
 ]
+PLACEHOLDER = "<在此填你的项目根>"
+
+
+def _configured():
+    """白名单是否已配置。**占位符还在 = 没配** ⇒ 拒绝工作（不静默放行、不静默全拦）。"""
+    return all(PLACEHOLDER not in r for r in ALLOW_ROOTS)
 
 # ── 系统目录：放行，否则脚本/工具自己都跑不了，会全是噪音 ──
 # ⚠️ macOS 上 `/tmp` `/etc` `/var` 是 `/private/*` 的软链；
@@ -120,6 +134,16 @@ def main():
     if "--self-test" in sys.argv:
         return self_test()
 
+    # ⛔ 未配置 ⇒ 明说，不静默。**这是本仓的一条通行规矩**：
+    #    "空必须是说出来的"（见 README §0③、以及 tools/check_public_hygiene.py 的同款处理）。
+    if not _configured():
+        emit("⛔ path-guard：**白名单未配置** —— `ALLOW_ROOTS` 还是占位符，"
+             "这道门现在没有意义。\n\n"
+             "装之前请编辑本文件顶部的 `ALLOW_ROOTS`，填成你自己的项目根（可写多条）。\n\n"
+             "**不改的后果**：白名单是一个不存在的路径 ⇒ 它会把**所有**真实路径都拦下，"
+             "或者（反过来）你以为它在保护、其实它什么都没拦。**而你不会知道。**", None)
+        return 0
+
     try:
         payload = json.load(sys.stdin)
     except Exception as e:
@@ -178,6 +202,18 @@ def self_test():
     ok, fail = (ok + 1, fail) if good else (ok, fail + 1)
     print(f"  {'✅' if good else '❌'} {'反证 · 白名单=根后不再命中':<26} 期望=放  实际={'拦' if got else '放'}")
     ALLOW_ROOTS = saved
+
+    # 反证②：「未配置」必须能被识别 —— 否则那道检查是摆设
+    #   （占位符在 ⇒ 假；换掉 ⇒ 真）
+    had_placeholder = not _configured()
+    ALLOW_ROOTS = [os.path.realpath("/tmp/样本根")]
+    fixed = _configured()
+    ALLOW_ROOTS = saved
+    good = had_placeholder and fixed
+    ok, fail = (ok + 1, fail) if good else (ok, fail + 1)
+    print(f"  {'✅' if good else '❌'} {'反证 · 未配置能被识别':<26} "
+          f"占位符时={'未配置' if had_placeholder else '误判为已配'} · "
+          f"换掉后={'已配置' if fixed else '仍判未配置'}")
 
     print(f"\n  通过 {ok} · 失败 {fail}")
     return 1 if fail else 0
