@@ -45,10 +45,16 @@ RULES = [
 ]
 
 
+# ⚠️ 匹配前先去掉引号内内容 —— 否则 `echo "find . -exec rm {} ;"` 这类
+#    **只是提到**批量写法的命令也会被拦（同 `outward-guard` 的实测误报，2026-09-15）。
+RE_QUOTED = re.compile(r"'[^']*'|\"[^\"]*\"|`[^`]*`")
+
+
 def find_hits(payload):
     if payload.get("tool_name") != "Bash":
         return []
-    cmd = (payload.get("tool_input") or {}).get("command", "") or ""
+    raw = (payload.get("tool_input") or {}).get("command", "") or ""
+    cmd = RE_QUOTED.sub(" ", raw)
     for name, pat, why in RULES:
         if pat.search(cmd):
             return [(name, why)]
@@ -107,6 +113,9 @@ def self_test():
         ("rm 单文件",         r"rm notes.txt",                                       0),
         ("xargs 只读",        r"ls | xargs echo",                                    0),
         ("普通 for 不改写",    r"for f in *.md; do echo $f; done",                    0),
+        # ⚠️ 实测误报逼出来的：只是**提到**批量写法的命令，不该拦
+        ("只是提到 · echo",    r'echo "find . -exec rm {} ;"',                       0),
+        ("只是提到 · 写文档",   r'printf "批量: sed -i \x27s/a/b/\x27 *.md\n"',       0),
     ]
     print("bulk-write-guard · 突变验证\n")
     ok = fail = 0
