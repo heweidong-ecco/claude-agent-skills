@@ -84,7 +84,7 @@ python3 tools/check_public_hygiene.py               # 本仓校验
 
 | skill | `SKILL.md` | `harness/` | `source-layer/` |
 |---|---|---|---|
-| **`griling-agent`** | ⬜ **空（待写）** | ✅ 3 门启用 · 1 门**实测否定** | **5 份记录**（01 纠偏原文 / 02 规则提取测试 / 03 为什么重要与第一个正例 / 04 harness 建设与实测 / **05 harness 装载与实测**） |
+| **`grilling-agent`** | ⬜ **空（待写）** | ✅ 3 门启用 · 1 门**实测否定** | **5 份记录**（01 纠偏原文 / 02 规则提取测试 / 03 为什么重要与第一个正例 / 04 harness 建设与实测 / **05 harness 装载与实测**） |
 
 **`harness/` 的四道门**：
 
@@ -117,7 +117,7 @@ python3 tools/check_public_hygiene.py               # 本仓校验
 
 | # | 缺口 | 影响 |
 |---|---|---|
-| **1** | `griling-agent/SKILL.md` **是空的** | 本仓目前**只有门，没有内容** |
+| **1** | `grilling-agent/SKILL.md` **是空的** | 本仓目前**只有门，没有内容** |
 | **2** | ① ② 已装**用户级**✅；**③ 还没做真实触发测试**（待重启会话）；④ 不装 | ③ 在测之前**不要当它生效了** |
 | **3** | `tools/private-names.txt` **只在本机**（被 `.gitignore` 排除） | **换机器要重建**，否则"私有名"那项在本地也是空的 |
 | **4** | `core.hooksPath` **不随 clone 携带** | 换机器要重跑 `git config core.hooksPath .githooks` |
