@@ -57,17 +57,42 @@ RE_RM_RF = re.compile(r"\brm\s+-[a-zA-Z]*[rf][a-zA-Z]*")
 RE_QUOTED = re.compile(r"'[^']*'|\"[^\"]*\"|`[^`]*`")
 
 
-def rm_targets(cmd):
+RE_CD = re.compile(r"\bcd\s+(?:-{1,2}\S+\s+)*([^\s;&|]+)")
+
+
+def _base_dir(cmd, cwd):
+    """相对路径的基准 = 命令里**第一个 `cd` 的目标**；没有才用 cwd。
+
+    ⚠️ 不这么做，`cd /tmp && rm -rf x` 里的 `x` 会按**钩子进程的 cwd** 解析，
+       而不是按 `/tmp` —— 实测误报（2026-09-15）：`/tmp` 明明在白名单里，却被判"之外"。
+    ⛔ 两种情况都可能：**误拦**（这次这样）和**误放**（cd 去的地方恰好让相对路径落进白名单）。
+       后者更危险。
+    """
+    m = RE_CD.search(RE_QUOTED.sub(" ", cmd))      # 去引号后再找 cd（cd 的语法位置）
+    if not m:
+        return cwd
+    t = m.group(1).strip().strip("'\"")
+    if t.startswith("~"):
+        t = os.path.expanduser(t)
+    return os.path.realpath(t) if os.path.isabs(t) else os.path.join(cwd or ".", t)
+
+
+def rm_targets(cmd, cwd=None):
     """取出 `rm -r/-f` 的目标；系统临时目录下的不算命中。"""
     if not RE_RM_RF.search(cmd):
         return []
+    base = _base_dir(cmd, cwd)
     out = []
     for m in RE_RM.finditer(cmd):
         tok = m.group(1).strip().strip("'\"")
         if not tok or tok.startswith("-"):
             continue
-        p = os.path.realpath(os.path.expanduser(tok) if tok.startswith("~")
-                             else os.path.abspath(tok))
+        if tok.startswith("~"):
+            p = os.path.realpath(os.path.expanduser(tok))
+        elif os.path.isabs(tok):
+            p = os.path.realpath(tok)
+        else:
+            p = os.path.realpath(os.path.join(base, tok))
         if not any(p == r or p.startswith(r + os.sep) for r in SYSTEM_ROOTS):
             out.append(tok)
     return out
@@ -83,7 +108,7 @@ def find_hits(payload):
         if pat.search(verb_text):
             hits.append((name, why))
             break                       # 只报最高优先的那一条，避免刷屏
-    for t in rm_targets(raw):           # ← rm 的目标用**原文**
+    for t in rm_targets(raw, payload.get("cwd")):   # ← rm 的目标用**原文**，基准按命令里的 `cd` 定
         hits.append(("不可逆删除", f"`rm -r/-f {t}` —— 系统临时目录之外，删了拿不回来。"))
     return hits
 
@@ -147,11 +172,17 @@ def self_test():
         ("只是提到 · echo",           'echo "git push"',                          0),
         ("只是提到 · grep 文档",        'grep -rn "git push" docs/',                0),
         ("只是提到 · 但动作是 commit",   'git commit -m "补充 git push 的说明"',      1),
+        # ⚠️ 实测误报逼出来的：相对路径的基准要看命令里的 `cd`
+        ("cd /tmp 后 rm 相对路径",     "cd /tmp && rm -rf scratch",                 0),
+        ("cd 非系统目录后 rm 相对路径",  "cd /opt/work && rm -rf data",               1),
+        ("无 cd 时按 payload.cwd 判",  "rm -rf scratch",     1),   # cwd 由下面统一给 /opt/work
     ]
     print("outward-guard · 突变验证\n")
     ok = fail = 0
     for desc, cmd, expect in cases:
-        got = 1 if find_hits({"tool_name": "Bash", "tool_input": {"command": cmd}}) else 0
+        # ⚠️ **必须给 cwd** —— 相对路径的判定依赖它（没 cd 时按它解析）
+        got = 1 if find_hits({"tool_name": "Bash", "cwd": "/opt/work",
+                              "tool_input": {"command": cmd}}) else 0
         good = got == expect
         ok, fail = (ok + 1, fail) if good else (ok, fail + 1)
         print(f"  {'✅' if good else '❌'} {desc:<22} 期望={'拦' if expect else '放'}  实际={'拦' if got else '放'}")

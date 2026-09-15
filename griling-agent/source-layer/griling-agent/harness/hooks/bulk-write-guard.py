@@ -36,7 +36,12 @@ RULES = [
      "改动面由 `find` 决定 —— 写命令时你不知道它会命中几个文件。"),
     ("xargs 批处理", re.compile(r"\bxargs\b[^\n;&|]*\b(?:rm|mv|cp|sed|perl|sh|bash)\b"),
      "目标来自管道，范围不可见。"),
-    ("循环里改写", re.compile(r"\bfor\b[\s\S]{0,200}?\bdo\b[\s\S]{0,400}?\b(?:sed|perl|rm|mv)\b"),
+    # ⚠️ `(?:(?!\bdone\b)[\s\S])` = **不许跨过 `done`**。
+    #    不这么做，`for …; do …; done` **之后**的 `sed` / `rm` 也会被算进循环体
+    #    —— 实测误报（2026-09-15）：一条 `for` 循环后面跟了句 `ls | sed …`，被拦。
+    ("循环里改写",
+     re.compile(r"\bfor\b(?:(?!\bdone\b)[\s\S]){0,200}?\bdo\b"
+                r"(?:(?!\bdone\b)[\s\S]){0,400}?\b(?:sed|perl|rm|mv)\b"),
      "循环体里的目标通常是变量，实际范围看不见。"),
     ("就地改写 + 通配", re.compile(r"\b(?:sed|perl)\b[^\n;&|]*-i[^\n;&|]*[*?]"),
      "`-i` 是就地改（不可逆），配通配符则面不可见。"),
@@ -116,6 +121,9 @@ def self_test():
         # ⚠️ 实测误报逼出来的：只是**提到**批量写法的命令，不该拦
         ("只是提到 · echo",    r'echo "find . -exec rm {} ;"',                       0),
         ("只是提到 · 写文档",   r'printf "批量: sed -i \x27s/a/b/\x27 *.md\n"',       0),
+        # ⚠️ 实测误报逼出来的：`for … done` **之后**的 sed 不属于循环体
+        ("done 之后的 sed",    "for u in a b; do echo $u; done\nls | sed 's/x/y/'",  0),
+        ("循环体里真改写",      "for f in *.md; do sed -i '' 's/a/b/' $f; done",      1),
     ]
     print("bulk-write-guard · 突变验证\n")
     ok = fail = 0
