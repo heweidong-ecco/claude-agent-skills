@@ -9,3 +9,6 @@ __pycache__/
 # 写进它的名单会被 check_public_hygiene.py 当作违规项
 # —— 放这里而不是放进检查器，是因为**检查器本身是公开的**
 tools/private-names.txt
+
+# ── 测试产物（skill-creator 跑出来的），不进仓库 ──
+*-workspace/
