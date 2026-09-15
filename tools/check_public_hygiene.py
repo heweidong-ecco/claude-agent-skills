@@ -40,6 +40,7 @@ check_public_hygiene —— 公开仓卫生校验（**唯一校验真相，CI �
 
 import argparse
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -94,7 +95,56 @@ def load_private_names():
     return out
 
 
+def git_ignored(paths):
+    """问 git：这些路径里哪些**不会进仓库**。返回 `set`；**问不到就返回 `None`**。
+
+    为什么需要它
+    ------------
+    本检查器管的是「**公开**卫生」—— 只该管**会被发布的东西**。
+    但 `rglob` 扫的是**整个工作区**，于是把 `.gitignore` 掉的文件也算进来。
+
+    **实测（2026-09-15）**：92 处报警**全在 gitignore 的目录里**（测试转录）。
+    本地 pre-commit 因此**拒了提交**，而 CI（干净 clone 里那些文件不存在）**照样过**。
+    ⇒ **同一份脚本，本地比 CI 严。**
+
+    后果**不是"更安全"**，是两条路都通向门失效：
+
+    - 要么 `--no-verify` 变成习惯
+    - 要么有人把门改松 —— **那 CI 也跟着松**
+
+    这正是文件头警告的「门会自己腐烂」。
+
+    ⚠️ 返回 `None` = **问不到 git**（未装 / 不是仓库）。此时**不跳过**，
+       并**把范围退回"整个工作区"这件事明说出来** —— **宁可吵，不可漏**。
+    """
+    if not paths:
+        return set()
+    try:
+        # ⚠️ `-z` **不是可选的**：默认输出会给非 ASCII 路径加引号并转成八进制转义
+        #    （`"…/\350\257\257\346\212\245…"`），于是**中文目录名一个都匹配不上**。
+        #    实测（2026-09-15）：去掉 `-z` 时，92 处报警仍全在 gitignore 的目录里 ——
+        #    **门看着改好了，其实没生效**。`-z` 让输入输出都按 NUL 分隔、**原样不转义**。
+        p = subprocess.run(
+            ["git", "check-ignore", "--stdin", "-z"],
+            cwd=ROOT,
+            input="\0".join(str(x) for x in paths) + "\0",
+            capture_output=True, text=True, timeout=60,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    # 0 = 有被忽略的 / 1 = 一个都没有 / 其余（含 128）= 问不到
+    if p.returncode not in (0, 1):
+        return None
+    return {x for x in p.stdout.split("\0") if x.strip()}
+
+
 def iter_files():
+    """返回 `(待扫文件列表, 因 gitignore 跳过的个数)`；第二个为 `None` = **范围退回整个工作区**。
+
+    ⛔ 跳过**必须可见** —— 仓里硬约束 #2（不许静默跳过检查）与
+       §5 那条「没有数据的格子必须显示成没数据」，这里是同一个道理。
+    """
+    cands = []
     for p in sorted(ROOT.rglob("*")):
         if not p.is_file():
             continue
@@ -106,7 +156,14 @@ def iter_files():
             continue
         if p.suffix.lower() not in TEXT_EXT:
             continue
-        yield p
+        cands.append(p)
+
+    rel = {p: str(p.relative_to(ROOT)) for p in cands}
+    ignored = git_ignored(list(rel.values()))
+    if ignored is None:
+        return cands, None
+    keep = [p for p in cands if rel[p] not in ignored]
+    return keep, len(cands) - len(keep)
 
 
 def scan_text(text, private_names, exempt=()):
@@ -126,8 +183,9 @@ def scan_text(text, private_names, exempt=()):
 
 def check():
     private_names = load_private_names()
+    files, n_skipped = iter_files()
     all_hits = []
-    for p in iter_files():
+    for p in files:
         try:
             text = p.read_text(encoding="utf-8")
         except (UnicodeDecodeError, OSError):
@@ -140,7 +198,7 @@ def check():
             exempt = ()
         for name, line, tok in scan_text(text, private_names, exempt):
             all_hits.append((p.relative_to(ROOT), line, name, tok))
-    return all_hits, private_names
+    return all_hits, private_names, n_skipped
 
 
 def main():
@@ -155,7 +213,7 @@ def main():
     if args.self_test:
         return self_test()
 
-    hits, private_names = check()
+    hits, private_names, n_skipped = check()
 
     # ⛔ 清单缺失 ≠ 可以静默跳过。见文件头「但"空"必须是说出来的」。
     if not private_names and not args.no_private_list:
@@ -170,6 +228,14 @@ def main():
         return 1
 
     print(f"公开卫生校验 · 根目录 {ROOT.name}/")
+    # ⛔ 扫描范围**必须说出来**。跳过不报 = 静默跳过（硬约束 #2 禁的正是这个）。
+    if n_skipped is None:
+        print("  ⚠️ 扫描范围：**整个工作区** —— 问不到 git（未装 / 不是仓库），"
+              "**没能排除 `.gitignore` 的文件**。")
+        print("     这会让门**比 CI 严**（CI 在干净 clone 上跑，没有那些文件）"
+              "⇒ 本地可能被拒而 CI 通过。")
+    else:
+        print(f"  扫描范围：仅**会被提交的**文件 —— 依 `.gitignore` 跳过 {n_skipped} 个")
     if private_names:
         print(f"  私有名清单：已加载 {len(private_names)} 条（本地门）")
     else:
@@ -179,7 +245,7 @@ def main():
 
     if not hits:
         print("✅ 通过：绝对路径 / 家目录路径 / 邮箱 / 密钥样式 / 手机号"
-              + ("/ 私有名" if private_names else "（私有名已显式跳过）") + " —— 全部无命中")
+              + (" / 私有名" if private_names else "（私有名已显式跳过）") + " —— 全部无命中")
         return 0
 
     print(f"✗ 未通过（{len(hits)} 处）：\n")
@@ -227,6 +293,28 @@ def self_test():
     good = "私有名" not in got
     ok, fail = (ok + 1, fail) if good else (ok, fail + 1)
     print(f"  {'✅' if good else '❌'} {'反证 · 清空清单后不报':<22} 期望=无  实际={sorted(got) or '无'}")
+
+    # ── 范围判据（2026-09-15 新增）────────────────────────────────────
+    # 证明「只扫**会被提交的**东西」这条路真的通，而不是永远返回空集。
+    print("\n  范围判据 · 依 .gitignore 排除（本次新增）：")
+    # ⚠️ 探针**必须含非 ASCII**。第一版探针是纯 ASCII（`probe-workspace/probe.md`），
+    #    **它全绿**，而真实检查里中文目录**一个都没被排除** ——
+    #    git 默认给非 ASCII 路径加引号 + 八进制转义，比对必然落空。
+    #    ⇒ **一条测不到真实输入形状的探针 = 又一次"看着像测过"的自检。**
+    probes = [
+        ("忽略的 · ASCII 路径", "grilling-agent/source-layer/probe-workspace/probe.md", True),
+        ("忽略的 · **非 ASCII 路径**", "某目录/probe-workspace/中文名.md", True),
+        ("反证 · 未忽略的不被误排", "README.md", False),
+    ]
+    got = git_ignored([q for _, q, _ in probes])
+    if got is None:
+        print("  ⚠️ 问不到 git ⇒ **本次无法验证范围判据**。"
+              "把这件事说出来，**不当作通过**。")
+    else:
+        for desc, q, want_in in probes:
+            good = (q in got) == want_in
+            ok, fail = (ok + 1, fail) if good else (ok, fail + 1)
+            print(f"  {'✅' if good else '❌'} {desc:<22} {q}")
 
     print(f"\n  通过 {ok} · 失败 {fail}")
     return 1 if fail else 0

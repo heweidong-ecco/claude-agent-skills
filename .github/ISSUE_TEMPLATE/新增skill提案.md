@@ -11,7 +11,7 @@ labels: enhancement
 - [ ] **它拦得住的东西是可判定的**：能说清"违反它时，有什么会**变红**"
 - [ ] **它不重复**：`agent-pitfalls-kb` 里已有的规则，本仓**不重复收录**（那是规则库的事）
 - [ ] **意图层的东西不进这里**：已经实测过 —— 意图的代理指标在真实语料上 **100% 误报**
-      （详见 `griling-agent/source-layer/record记录-04`）
+      （详见 `grilling-agent/source-layer/record记录-04`）
 
 ## 它要解决什么
 
