@@ -1,0 +1,82 @@
+[
+  {
+    "query": "我那个简历文件夹里现在堆了七八个版本，v1 v2 v3 还有几个带日期的，我自己都分不清哪个是哪个了，你帮我理一下，该合并的合并该删的删",
+    "should_trigger": true
+  },
+  {
+    "query": "把这个项目里所有写死的绝对路径都改成相对路径，注意别改到 .venv 和 node_modules 里面去",
+    "should_trigger": true
+  },
+  {
+    "query": "帮我把这份需求文档变成一份能直接交给外包团队照着做的开发规范，他们不了解我们这边的系统，做完我要能验收",
+    "should_trigger": true
+  },
+  {
+    "query": "现在这个 300 多行的函数内容太负责，太多了，你帮我拆一拆，顺便把命名也理顺，怎么拆你定",
+    "should_trigger": true
+  },
+  {
+    "query": "我下周要面一家做 Agent 的公司，你根据他们的 JD 把我的经历重新组织一下，哪些放前面哪些不放你看着办",
+    "should_trigger": true
+  },
+  {
+    "query": "这几个小工具都是我自己随手写的，现在想挑一个整理成能拿得出手的开源项目，你觉得哪个笔记合适，我要做哪些事，哪些事能交给你",
+    "should_trigger": true
+  },
+  {
+    "query": "我们团队现在每次发版都要手动跑一堆脚本，你帮我看看能不能整合成一个流程，或者skill，或者LangGrahp Python脚本，并附带好说明。让新人来了看了内容就能照跑成功",
+    "should_trigger": true
+  },
+  {
+    "query": "把这几篇笔记里的东西沉淀成一份内部手册，以后新同事来了直接看这个就行",
+    "should_trigger": true
+  },
+  {
+    "query": "我这个数据库表结构越加越乱了，字段命名有驼峰还有下划线，后面几个字段根本没人用，我应该怎么重构，你帮我规划一下，改动要尽量小，改之前必须告诉我确认",
+    "should_trigger": true
+  },
+  {
+    "query": "帮我把这个文件夹的一整套东西（代码、文档、数据）从原来的地方挪到新的目录结构下，大概有十几个文件夹，挪完路径引用也别断，要修改好",
+    "should_trigger": true
+  },
+  {
+    "query": "把这句话里的错别字改一下：「已经确认过了」",
+    "should_trigger": false
+  },
+  {
+    "query": "在桌面新建一个文件夹，名字叫 2026Q1-项目归档",
+    "should_trigger": false
+  },
+  {
+    "query": "列一下我下载文件夹里都有什么文件",
+    "should_trigger": false
+  },
+  {
+    "query": "这个 TypeScript 的报错 Property 'x' does not exist on type 'Y' 是什么意思",
+    "should_trigger": false
+  },
+  {
+    "query": "把这段 JSON 格式化一下，现在是一行看着难受：{\"name\":\"svc\",\"tags\":[\"a\",\"b\"],\"port\":8080}",
+    "should_trigger": false
+  },
+  {
+    "query": "现在几点",
+    "should_trigger": false
+  },
+  {
+    "query": "帮我跑一下 pytest 看看现在过不过",
+    "should_trigger": false
+  },
+  {
+    "query": "把这句话里的「很」改成「非常」：「这个方案很好，先按它做」",
+    "should_trigger": false
+  },
+  {
+    "query": "async function load() 的返回类型，我该写 Promise 还是 Promise<T>，不太确定",
+    "should_trigger": false
+  },
+  {
+    "query": "报错是 EADDRINUSE: address already in use :::3000，这是端口被占用了吧",
+    "should_trigger": false
+  }
+]
